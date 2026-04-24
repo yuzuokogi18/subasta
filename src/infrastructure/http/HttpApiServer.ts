@@ -15,7 +15,7 @@ export class HttpApiServer {
   private toMySQLDate(date: Date): string {
     return date.toISOString().slice(0, 19).replace('T', ' ');
   }
-
+//rarttt//
   private readonly server: http.Server;
 
   constructor(
@@ -35,9 +35,6 @@ export class HttpApiServer {
     });
   }
 
-
-  
-
 private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -53,10 +50,6 @@ private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<
   const route = `${req.method} ${url}`;
 
   try {
-
-    // ─────────────────────────────────────────────
-    // ✅ RUTAS ESPECÍFICAS PRIMERO
-    // ─────────────────────────────────────────────
 
     if (route === "GET /participants") {
       res.writeHead(200);
@@ -114,42 +107,42 @@ private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<
     }
 
     const auctionBidsMatch = url.match(/^\/auctions\/([^/]+)\/bids$/);
-if (req.method === "GET" && auctionBidsMatch) {
-    const auctionId = auctionBidsMatch[1];
-    const bids = await this.bidRepo.findAcceptedByAuction(auctionId);
-    res.writeHead(200);
-    res.end(JSON.stringify({ success: true, data: bids }));
-    return;
-}
+    if (req.method === "GET" && auctionBidsMatch) {
+      const auctionId = auctionBidsMatch[1];
+      const bids = await this.bidRepo.findAcceptedByAuction(auctionId);
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, data: bids }));
+      return;
+    }
 
-const auctionResultMatch = url.match(/^\/auctions\/([^/]+)\/result$/);
-if (req.method === "GET" && auctionResultMatch) {
-    const auctionId = auctionResultMatch[1];
-    const result = await this.auctionResultRepo.findByAuctionId(auctionId);
-    if (!result) {
+    const auctionResultMatch = url.match(/^\/auctions\/([^/]+)\/result$/);
+    if (req.method === "GET" && auctionResultMatch) {
+      const auctionId = auctionResultMatch[1];
+      const result = await this.auctionResultRepo.findByAuctionId(auctionId);
+      if (!result) {
         res.writeHead(404);
         res.end(JSON.stringify({ success: false, error: "Result not found" }));
-    } else {
+        return;
+      } else {
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: result }));
+        return;
+      }
     }
-    return;
-  }
 
-  const auctionParticipantsMatch = url.match(/^\/auctions\/([^/]+)\/participants$/);
-if (req.method === "GET" && auctionParticipantsMatch) {
-    const auctionId = auctionParticipantsMatch[1];
-    const participants = await this.participantRepo.findByAuction(auctionId);
-    res.writeHead(200);
-    res.end(JSON.stringify({ success: true, data: participants }));
-    return;
-}
+    const auctionParticipantsMatch = url.match(/^\/auctions\/([^/]+)\/participants$/);
+    if (req.method === "GET" && auctionParticipantsMatch) {
+      const auctionId = auctionParticipantsMatch[1];
+      const participants = await this.participantRepo.findByAuction(auctionId);
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, data: participants }));
+      return;
+    }
 
     const auctionByIdMatch = url.match(/^\/auctions\/([^/]+)$/);
 
     if (req.method === "GET" && auctionByIdMatch) {
       const auctionId = auctionByIdMatch[1];
-
       const auction = await this.auctionRepo.findById(auctionId);
 
       if (!auction) {
@@ -158,14 +151,15 @@ if (req.method === "GET" && auctionParticipantsMatch) {
           success: false,
           error: "Auction not found"
         }));
+        return;
       } else {
         res.writeHead(200);
         res.end(JSON.stringify({
           success: true,
           data: auction
         }));
+        return;
       }
-      return;
     }
 
     res.writeHead(404);
@@ -173,8 +167,12 @@ if (req.method === "GET" && auctionParticipantsMatch) {
       success: false,
       error: "Route not found"
     }));
+    return;
 
   } catch (err) {
+
+    if (res.headersSent) return;
+
     const isValidation = err instanceof ValidationError;
 
     res.writeHead(isValidation ? 400 : 500);
@@ -185,8 +183,6 @@ if (req.method === "GET" && auctionParticipantsMatch) {
   }
 }
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-
   private async handleCreateAuction(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const contentType = req.headers["content-type"] ?? "";
     if (contentType.includes("multipart/form-data")) {
@@ -196,42 +192,30 @@ if (req.method === "GET" && auctionParticipantsMatch) {
     }
   }
 
-  
-
-  // ── POST /auctions con imagen ──────────────────────────────────────────────
 private async handleCreateAuctionMultipart(req: IncomingMessage, res: ServerResponse): Promise<void> {
     req.socket.setTimeout(120000);
     req.socket.setNoDelay(true);
 
     const busboy = (await import("busboy")).default;
-    const bb = busboy({ 
-        headers: req.headers, 
-        limits: { fileSize: 20 * 1024 * 1024 }  // ← 20MB
-    });
+    const bb = busboy({ headers: req.headers });
 
-    let productName = "", lotNumber = "", mimeType = "", fileSize = 0;
-    let startingPrice = 1000, durationSeconds = 120;
+    let productName = "", lotNumber = "";
     let buffer: Buffer | null = null;
 
-    bb.on("field", (name: string, value: string) => {
-        if (name === "productName")     productName     = value;
-        if (name === "lotNumber")       lotNumber       = value;
-        if (name === "startingPrice")   startingPrice   = Number(value);
-        if (name === "durationSeconds") durationSeconds = Number(value);
+    bb.on("field", (name, value) => {
+        if (name === "productName") productName = value;
+        if (name === "lotNumber") lotNumber = value;
     });
 
-    bb.on("file", (_: string, file: NodeJS.ReadableStream, info: { mimeType: string }) => {
-        mimeType = info.mimeType;
+    bb.on("file", (_, file) => {
         const chunks: Buffer[] = [];
-        file.on("data", (chunk: Buffer) => { chunks.push(chunk); fileSize += chunk.length; });
-        file.on("end", () => { buffer = Buffer.concat(chunks); });
+        file.on("data", chunk => chunks.push(chunk));
+        file.on("end", () => buffer = Buffer.concat(chunks));
     });
 
     bb.on("finish", async () => {
         try {
-            if (!productName || !lotNumber) {
-                throw new ValidationError("productName and lotNumber are required");
-            }
+            if (!productName || !lotNumber) throw new ValidationError("Missing fields");
 
             let productImageUrl: string | null = null;
             if (buffer) {
@@ -239,44 +223,40 @@ private async handleCreateAuctionMultipart(req: IncomingMessage, res: ServerResp
                 productImageUrl = uploaded.url;
             }
 
-            const createdAt = this.toMySQLDate(new Date());
-
             const auction = {
-                id:              uuidv4(),
+                id: uuidv4(),
                 productName,
                 lotNumber,
                 productImageUrl,
-                startingPrice,
-                durationSeconds,
-                status:          "waiting" as const,
-                createdAt,
+                startingPrice: 1000,
+                durationSeconds: 120,
+                status: "waiting" as const,
+                createdAt: this.toMySQLDate(new Date()),
             };
 
             await this.auctionRepo.save(auction);
-            console.log(`🏷️  New auction: ${productName} (Lot #${lotNumber}) image: ${productImageUrl ?? "none"}`);
+
+            if (res.headersSent) return;
 
             res.writeHead(201);
             res.end(JSON.stringify({ success: true, data: auction }));
         } catch (err) {
+            if (res.headersSent) return;
+
             res.writeHead(err instanceof ValidationError ? 400 : 500);
             res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : "Error" }));
         }
     });
 
-    bb.on("error", (err: Error) => {
-        console.error("Busboy error:", err);
+    bb.on("error", () => {
+        if (res.headersSent) return;
         res.writeHead(500);
         res.end(JSON.stringify({ success: false, error: "File upload error" }));
-    });
-
-    req.on("error", (err: Error) => {
-        console.error("Request error:", err);
     });
 
     req.pipe(bb);
 }
 
-  // ── POST /auctions sin imagen (JSON) ───────────────────────────────────────
   private async handleCreateAuctionJson(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const body = await this.parseBody(req);
 
@@ -300,24 +280,22 @@ private async handleCreateAuctionMultipart(req: IncomingMessage, res: ServerResp
     const createdAt = this.toMySQLDate(new Date());
 
     const auction = {
-      id:              uuidv4(),
-      productName:     productName as string,
-      lotNumber:       lotNumber as string,
+      id: uuidv4(),
+      productName,
+      lotNumber,
       productImageUrl: null,
-      startingPrice:   Number(startingPrice   ?? 1000),
+      startingPrice: Number(startingPrice ?? 1000),
       durationSeconds: Number(durationSeconds ?? 120),
-      status:          "waiting" as const,
-      createdAt:       createdAt,
+      status: "waiting" as const,
+      createdAt,
     };
 
     await this.auctionRepo.save(auction);
-    console.log(`🏷️  New auction: ${productName} (Lot #${lotNumber})`);
 
     res.writeHead(201);
     res.end(JSON.stringify({ success: true, data: auction }));
   }
 
-  // ── POST /avatar/upload ────────────────────────────────────────────────────
   private async handleAvatarUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const contentType = req.headers["content-type"] ?? "";
     if (!contentType.includes("multipart/form-data")) {
@@ -327,27 +305,33 @@ private async handleCreateAuctionMultipart(req: IncomingMessage, res: ServerResp
     }
 
     const busboy = (await import("busboy")).default;
-    const bb = busboy({ headers: req.headers, limits: { fileSize: 5 * 1024 * 1024 } });
+    const bb = busboy({ headers: req.headers });
 
     let userId = "", mimeType = "", fileSize = 0;
     let buffer: Buffer | null = null;
 
-    bb.on("field", (name: string, value: string) => { if (name === "userId") userId = value; });
-    bb.on("file", (_: string, file: NodeJS.ReadableStream, info: { mimeType: string }) => {
+    bb.on("field", (name, value) => { if (name === "userId") userId = value; });
+    bb.on("file", (_, file, info) => {
       mimeType = info.mimeType;
       const chunks: Buffer[] = [];
-      file.on("data", (chunk: Buffer) => { chunks.push(chunk); fileSize += chunk.length; });
-      file.on("end", () => { buffer = Buffer.concat(chunks); });
+      file.on("data", chunk => { chunks.push(chunk); fileSize += chunk.length; });
+      file.on("end", () => buffer = Buffer.concat(chunks));
     });
 
     bb.on("finish", async () => {
       try {
         if (!userId) throw new ValidationError("userId field is required");
         if (!buffer) throw new ValidationError("avatar file is required");
+
         const result = await this.uploadAvatarUseCase.execute({ userId, buffer, mimeType, sizeBytes: fileSize });
+
+        if (res.headersSent) return;
+
         res.writeHead(200);
         res.end(JSON.stringify({ success: true, data: result }));
       } catch (err) {
+        if (res.headersSent) return;
+
         res.writeHead(err instanceof ValidationError ? 400 : 500);
         res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : "Upload failed" }));
       }
@@ -355,8 +339,6 @@ private async handleCreateAuctionMultipart(req: IncomingMessage, res: ServerResp
 
     req.pipe(bb);
   }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   private parseBody(req: IncomingMessage): Promise<string> {
     return new Promise((resolve) => {
