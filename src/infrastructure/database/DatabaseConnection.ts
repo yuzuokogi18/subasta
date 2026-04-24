@@ -7,9 +7,9 @@ export function getDatabase(): mysql.Pool {
     pool = mysql.createPool({
       host:            process.env.DB_HOST     ?? "localhost",
       port:            Number(process.env.DB_PORT ?? 3306),
-      user:            process.env.DB_USER     ?? "auction_user",
-      password:        process.env.DB_PASSWORD ?? "auction_pass",
-      database:        process.env.DB_NAME     ?? "live_auction",
+      user:            process.env.DB_USER     ?? "root",
+      password:        process.env.DB_PASSWORD ?? "12345",
+      database:        process.env.DB_NAME     ?? "liveauction",
       charset:         "utf8mb4",
       waitForConnections: true,
       connectionLimit:    10,
